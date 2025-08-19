@@ -204,45 +204,39 @@ exit /b 0
 :verify_download
 echo [INFO] 验证下载完整性...
 
-REM 检查是否有文件被下载
-set "file_count=0"
-for /f %%i in ('dir /b /a-d 2^>nul ^| find /c /v ""') do set "file_count=%%i"
+REM 使用 hf cache scan 命令验证下载
+echo [INFO] 使用 hf cache scan 验证下载状态...
 
-if %file_count% equ 0 (
-    echo [ERROR] 未找到下载的文件
+REM 检查 hf 命令是否可用
+where hf >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] hf 命令不可用，无法验证下载完整性
     exit /b 1
 )
 
-echo [SUCCESS] 找到 %file_count% 个文件
+REM 执行 hf cache scan 命令
+for /f "delims=" %%i in ('hf cache scan 2^>^&1') do set "cache_scan_output=%%i"
 
-REM 检查常见的重要文件
-set "found_important=0"
-if exist "config.json" (
-    set /a "found_important+=1"
-    echo [INFO] ✓ 找到重要文件: config.json
-)
-if exist "tokenizer.json" (
-    set /a "found_important+=1"
-    echo [INFO] ✓ 找到重要文件: tokenizer.json
-)
-if exist "tokenizer_config.json" (
-    set /a "found_important+=1"
-    echo [INFO] ✓ 找到重要文件: tokenizer_config.json
-)
-if exist "pytorch_model.bin" (
-    set /a "found_important+=1"
-    echo [INFO] ✓ 找到重要文件: pytorch_model.bin
-)
-if exist "model.safetensors" (
-    set /a "found_important+=1"
-    echo [INFO] ✓ 找到重要文件: model.safetensors
-)
-
-if %found_important% gtr 0 (
-    echo [SUCCESS] 下载验证通过，找到 %found_important% 个重要文件
+REM 检查模型是否在缓存中
+echo %cache_scan_output% | findstr /i "%model_name%" >nul
+if errorlevel 1 (
+    echo [WARNING] 在缓存中未找到模型 %model_name%
+    echo [INFO] 这可能意味着：
+    echo [INFO] 1. 模型下载失败
+    echo [INFO] 2. 模型下载到了不同的位置
+    echo [INFO] 3. 缓存扫描结果不完整
+    exit /b 1
 ) else (
-    echo [WARNING] 未找到常见的重要文件，但下载可能仍然有效
+    echo [SUCCESS] ✓ 模型 %model_name% 已成功下载到缓存
 )
+
+REM 显示完整的 hf cache scan 结果
+echo.
+echo [INFO] 📊 Hugging Face 缓存扫描结果:
+echo ==================================
+echo %cache_scan_output%
+echo ==================================
+echo.
 
 exit /b 0
 
@@ -250,24 +244,82 @@ exit /b 0
 echo [SUCCESS] === 下载完成！ ===
 
 REM 显示下载统计
+call :show_download_stats
+
+REM 获取模型的真实下载位置
+call :get_model_cache_path
+
+exit /b 0
+
+:show_download_stats
 echo [INFO] 下载统计信息:
 echo ==================================
-for /f "tokens=1" %%i in ('dir /s /-c 2^>nul ^| find "个文件"') do (
-    echo 总下载大小: %%i
-    break
+
+REM 获取模型的真实缓存路径和统计信息
+set "model_cache_path="
+set "model_size="
+set "file_count="
+
+REM 执行 hf cache scan 获取模型信息
+set "cache_scan_output="
+for /f "delims=" %%i in ('hf cache scan 2^>^&1') do (
+    set "line=%%i"
+    echo !line! | findstr /i "%model_name%" >nul
+    if not errorlevel 1 (
+        set "model_info=%%i"
+    )
 )
-echo 文件总数: %file_count%
 
-echo.
-echo [INFO] 下载的文件列表:
-dir /b /a-d 2>nul | findstr /v "^$" | head -20
-
-if %file_count% gtr 20 (
-    echo ... 还有 %file_count% 个文件
+if not "!model_info!"=="" (
+    REM 提取模型信息（Windows批处理中简化处理）
+    for /f "tokens=3,4" %%a in ("!model_info!") do (
+        set "model_size=%%a"
+        set "file_count=%%b"
+    )
+    
+    REM 提取缓存路径（使用正则表达式匹配）
+    for /f "delims=" %%i in ('echo !model_info! ^| findstr /r "/[^ ]*models--[^ ]*--[^ ]*"') do set "model_cache_path=%%i"
+    
+    if not "!model_cache_path!"=="" (
+        echo 模型缓存路径: !model_cache_path!
+        echo 模型大小: !model_size!
+        echo 文件数量: !file_count!
+    ) else (
+        echo 模型大小: !model_size!
+        echo 文件数量: !file_count!
+        echo [WARNING] 无法获取模型缓存路径
+    )
+) else (
+    echo [WARNING] 无法获取模型缓存信息，可能模型下载失败或缓存扫描失败
 )
 
 echo ==================================
-echo [SUCCESS] 模型已成功下载到: %cd%
+exit /b 0
+
+:get_model_cache_path
+REM 获取模型的真实下载位置
+set "model_cache_path="
+
+REM 执行 hf cache scan 获取模型信息
+set "cache_scan_output="
+for /f "delims=" %%i in ('hf cache scan 2^>^&1') do (
+    set "line=%%i"
+    echo !line! | findstr /i "%model_name%" >nul
+    if not errorlevel 1 (
+        set "model_info=%%i"
+    )
+)
+
+if not "!model_info!"=="" (
+    REM 提取缓存路径
+    for /f "delims=" %%i in ('echo !model_info! ^| findstr /r "/[^ ]*models--[^ ]*--[^ ]*"') do set "model_cache_path=%%i"
+)
+
+if not "!model_cache_path!"=="" (
+    echo [SUCCESS] 模型已成功下载到: !model_cache_path!
+) else (
+    echo [SUCCESS] 模型已成功下载到 Hugging Face 默认缓存目录
+)
 exit /b 0
 
 :show_help
