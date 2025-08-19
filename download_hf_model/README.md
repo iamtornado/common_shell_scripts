@@ -14,9 +14,10 @@
 
 ### 1. 安装依赖
 
-首先需要安装 Hugging Face Hub CLI 工具：
+首先需要安装 Hugging Face Hub CLI 工具（建议先使用uv创建虚拟环境，然后再安装）：
 
 ```bash
+#uv的使用说明可以参考此文：https://docs.dingtalk.com/i/nodes/3NwLYZXWynR79aRKivkKpMZXVkyEqBQm?corpId=
 pip install -U "huggingface_hub[cli]"
 ```
 
