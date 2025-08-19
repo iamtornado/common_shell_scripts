@@ -246,6 +246,62 @@ verify_download() {
     
     log_info "验证下载完整性..."
     
+    # 使用 hf cache scan 命令验证下载
+    log_info "使用 hf cache scan 验证下载状态..."
+    
+    # 检查 hf 命令是否可用
+    if ! command -v hf &> /dev/null; then
+        log_error "hf 命令不可用，无法验证下载完整性"
+        return 1
+    fi
+    
+    # 执行 hf cache scan 命令
+    local cache_scan_output
+    if cache_scan_output=$(hf cache scan 2>&1); then
+        log_success "缓存扫描完成"
+        
+        # 显示完整的 hf cache scan 结果
+        log_success "✓ 缓存扫描完成"
+        
+        # 直接显示 hf cache scan 的完整输出
+        echo ""
+        log_info "📊 Hugging Face 缓存扫描结果:"
+        echo "=================================="
+        echo "$cache_scan_output"
+        echo "=================================="
+        echo ""
+        
+        # 检查模型是否在缓存中
+        if echo "$cache_scan_output" | grep -q "$model_name"; then
+            log_success "✓ 模型 $model_name 已成功下载到缓存"
+            return 0
+        else
+            log_warning "在缓存中未找到模型 $model_name"
+            log_info "这可能意味着："
+            log_info "1. 模型下载失败"
+            log_info "2. 模型下载到了不同的位置"
+            log_info "3. 缓存扫描结果不完整"
+            
+            # 尝试使用传统方法验证
+            verify_download_traditional "$model_name"
+            return 1
+        fi
+    else
+        log_warning "hf cache scan 命令执行失败: $cache_scan_output"
+        log_info "回退到传统验证方法..."
+        
+        # 回退到传统验证方法
+        verify_download_traditional "$model_name"
+        return $?
+    fi
+}
+
+# 传统验证方法（作为备用）
+verify_download_traditional() {
+    local model_name="$1"
+    
+    log_info "使用传统方法验证下载完整性..."
+    
     # 检查是否有文件被下载
     local file_count=$(find . -type f -not -path "./.*" | wc -l)
     
@@ -257,51 +313,60 @@ verify_download() {
     log_success "找到 $file_count 个文件"
     
     # 检查常见的重要文件
-    local important_files=("config.json" "tokenizer.json" "tokenizer_config.json" "pytorch_model.bin" "model.safetensors")
+    local important_files=("config.json" "tokenizer.json" "tokenizer_config.json" "pytorch_model.bin" "*.safetensors" "*.bin")
     local found_important=0
     
-    for file in "${important_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            found_important=$((found_important + 1))
-            log_info "✓ 找到重要文件: $file"
+    for pattern in "${important_files[@]}"; do
+        if ls $pattern 1> /dev/null 2>&1; then
+            local count=$(ls $pattern | wc -l)
+            found_important=$((found_important + count))
+            log_info "✓ 找到重要文件: $pattern (共 $count 个)"
         fi
     done
     
     if [[ $found_important -gt 0 ]]; then
-        log_success "下载验证通过，找到 $found_important 个重要文件"
+        log_success "传统验证通过，找到 $found_important 个重要文件"
+        return 0
     else
         log_warning "未找到常见的重要文件，但下载可能仍然有效"
+        return 1
     fi
-    
-    return 0
 }
 
 # 显示下载统计
 show_download_stats() {
     local download_path="$1"
+    local model_name="$2"
     
     log_info "下载统计信息:"
     echo "=================================="
     
-    # 文件大小统计
-    local total_size=$(du -sh . | cut -f1)
-    echo "总下载大小: $total_size"
+    # 获取模型的真实缓存路径和统计信息
+    local model_cache_path=""
+    local model_size=""
+    local file_count=""
     
-    # 文件数量统计
-    local file_count=$(find . -type f -not -path "./.*" | wc -l)
-    echo "文件总数: $file_count"
+    if command -v hf &> /dev/null; then
+        local cache_scan_output
+        if cache_scan_output=$(hf cache scan 2>&1); then
+            if echo "$cache_scan_output" | grep -q "$model_name"; then
+                local model_info=$(echo "$cache_scan_output" | grep "$model_name")
+                # 提取本地路径：使用正则表达式匹配以 / 开头的完整路径
+                model_cache_path=$(echo "$model_info" | grep -o '/[^[:space:]]*models--[^[:space:]]*--[^[:space:]]*')
+                model_size=$(echo "$model_info" | awk '{print $3}')
+                file_count=$(echo "$model_info" | awk '{print $4}')
+            fi
+        fi
+    fi
     
-    # 目录数量统计
-    local dir_count=$(find . -type d -not -path "./.*" | wc -l)
-    echo "目录总数: $dir_count"
-    
-    # 显示下载的文件列表
-    echo ""
-    log_info "下载的文件列表:"
-    find . -type f -not -path "./.*" | sort | head -20
-    
-    if [[ $file_count -gt 20 ]]; then
-        echo "... 还有 $((file_count - 20)) 个文件"
+    if [[ -n "$model_cache_path" ]]; then
+        echo "模型缓存路径: $model_cache_path"
+        echo "模型大小: $model_size"
+        echo "文件数量: $file_count"
+    else
+        echo "模型大小: 无法获取"
+        echo "文件数量: 无法获取"
+        log_warning "无法获取模型缓存信息，可能模型下载失败或缓存扫描失败"
     fi
     
     echo "=================================="
@@ -349,9 +414,25 @@ main() {
         log_success "=== 下载完成！ ==="
         log_info "总耗时: ${hours}小时 ${minutes}分钟 ${seconds}秒"
         
-        show_download_stats "$download_path"
+        show_download_stats "$download_path" "$model_name"
         
-        log_success "模型已成功下载到: $(pwd)"
+        # 获取模型的真实下载位置
+        local model_cache_path=""
+        if command -v hf &> /dev/null; then
+            local cache_scan_output
+            if cache_scan_output=$(hf cache scan 2>&1); then
+                if echo "$cache_scan_output" | grep -q "$model_name"; then
+                    # 提取本地路径：使用正则表达式匹配以 / 开头的完整路径
+                    model_cache_path=$(echo "$cache_scan_output" | grep "$model_name" | grep -o '/[^[:space:]]*models--[^[:space:]]*--[^[:space:]]*')
+                fi
+            fi
+        fi
+        
+        if [[ -n "$model_cache_path" ]]; then
+            log_success "模型已成功下载到: $model_cache_path"
+        else
+            log_success "模型已成功下载到 Hugging Face 默认缓存目录"
+        fi
         
     else
         log_error "=== 下载失败 ==="
