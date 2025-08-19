@@ -119,7 +119,18 @@ check_mirror_config() {
         read -p "是否现在配置镜像站点？(y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo 'export HF_ENDPOINT=https://hf-mirror.com' >> ~/.bashrc
+            # 检查是否已经在 ~/.bashrc 中配置过
+            if grep -q "HF_ENDPOINT" ~/.bashrc 2>/dev/null; then
+                log_warning "HF_ENDPOINT 已在 ~/.bashrc 中配置过"
+                log_info "当前配置: $(grep HF_ENDPOINT ~/.bashrc)"
+                log_info "跳过重复配置，仅设置当前会话环境变量"
+            else
+                # 添加配置到 ~/.bashrc
+                echo 'export HF_ENDPOINT=https://hf-mirror.com' >> ~/.bashrc
+                log_success "镜像站点配置已添加到 ~/.bashrc"
+            fi
+            
+            # 设置当前会话的环境变量
             export HF_ENDPOINT=https://hf-mirror.com
             log_success "镜像站点配置完成！当前会话已生效。"
             log_info "请运行 'source ~/.bashrc' 使配置永久生效。"
