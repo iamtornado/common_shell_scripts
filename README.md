@@ -16,6 +16,11 @@ common_shell_scripts/
 │   ├── download_hf_model.sh            # Linux/macOS 完整版脚本
 │   ├── download_hf_model.bat           # Windows 批处理版本
 │   └── ...
+├── install_browsers/                   # Ubuntu 浏览器安装脚本集合
+│   ├── README.md                       # 浏览器安装脚本说明
+│   ├── install_googlechrome.sh         # Google Chrome 安装脚本
+│   ├── install_microsoft_edge.sh       # Microsoft Edge 安装脚本
+│   └── ...
 ├── [future_scripts]/                   # 未来添加的脚本目录
 │   ├── script_name/
 │   ├── README.md
@@ -37,6 +42,19 @@ common_shell_scripts/
 
 **适用场景**: AI/ML 开发者、研究人员、需要下载大模型的用户
 
+### 2. Ubuntu 浏览器安装脚本集合 (`install_browsers/`)
+
+**功能**: 在Ubuntu系统上自动安装最新版本的Google Chrome和Microsoft Edge浏览器
+**特性**:
+- 支持Ubuntu 24.04及以上版本
+- 使用官方软件源和GPG密钥验证
+- 完整的系统兼容性检查
+- 智能错误处理和彩色输出
+- 自动创建桌面快捷方式（Edge）
+- 支持重新安装检测
+
+**适用场景**: Ubuntu用户、系统管理员、需要快速安装浏览器的用户
+
 ## 🔮 计划添加的脚本类型
 
 ### 系统管理类
@@ -44,30 +62,35 @@ common_shell_scripts/
 - 日志分析工具
 - 备份和恢复脚本
 - 性能优化工具
+- 软件包管理脚本
 
 ### 开发工具类
 - 代码格式化脚本
 - 依赖管理工具
 - 构建和部署脚本
 - 测试自动化工具
+- 开发环境配置脚本
 
 ### 网络工具类
 - 网络诊断脚本
 - 代理配置工具
 - 下载加速脚本
 - 网络监控工具
+- 浏览器自动化脚本
 
 ### 数据处理类
 - 文件批量处理
 - 数据格式转换
 - 日志解析工具
 - 数据清理脚本
+- 数据备份脚本
 
 ### 安全工具类
 - 安全检查脚本
 - 权限管理工具
 - 漏洞扫描脚本
 - 安全配置工具
+- 系统加固脚本
 
 ## ✨ 脚本特点
 
@@ -110,7 +133,11 @@ ls -la
 
 ### 3. 进入具体脚本目录
 ```bash
+# 进入Hugging Face模型下载脚本目录
 cd download_hf_model
+
+# 或进入浏览器安装脚本目录
+cd install_browsers
 ```
 
 ### 4. 查看脚本说明
@@ -120,12 +147,20 @@ cat README.md
 
 ### 5. 运行脚本
 ```bash
+# Hugging Face模型下载脚本
 # Linux/macOS
 chmod +x download_hf_model.sh
 ./download_hf_model.sh
 
 # Windows
 download_hf_model.bat
+
+# 浏览器安装脚本（Ubuntu系统）
+chmod +x install_googlechrome.sh
+./install_googlechrome.sh
+
+chmod +x install_microsoft_edge.sh
+./install_microsoft_edge.sh
 ```
 
 ## 🤝 贡献指南
@@ -184,6 +219,14 @@ download_hf_model.bat
 - 项目主页: [GitHub Repository](https://github.com/your-username/common_shell_scripts)
 - 问题反馈: [GitHub Issues](https://github.com/your-username/common_shell_scripts/issues)
 - 讨论交流: [GitHub Discussions](https://github.com/your-username/common_shell_scripts/discussions)
+
+## 🆕 更新日志
+
+### 2025年8月22日
+- **初始版本发布** - 包含Hugging Face模型下载脚本
+- **浏览器安装脚本集合** - 新增Google Chrome和Microsoft Edge自动安装脚本
+- **支持Ubuntu 24.04** - 完整的系统兼容性检查
+- **文档完善** - 详细的README说明和故障排除指南
 
 ---
 
