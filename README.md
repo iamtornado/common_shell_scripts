@@ -122,7 +122,7 @@ common_shell_scripts/
 
 ### 1. 克隆仓库
 ```bash
-git clone https://github.com/your-username/common_shell_scripts.git
+git clone https://github.com/iamtornado/common_shell_scripts.git
 cd common_shell_scripts
 ```
 

@@ -189,8 +189,8 @@ tornadoami
 此脚本集合仅供学习和个人使用。
 
 ## 更新日志
-- 2024: 初始版本发布
-- 支持Ubuntu 24.04
+- 2025-08-22: 初始版本发布
+- 支持Ubuntu系统，和基于debian的系统
 - 包含Google Chrome和Microsoft Edge安装脚本
 
 ## 🔮 未来扩展计划
