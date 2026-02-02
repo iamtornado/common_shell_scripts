@@ -8,6 +8,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 错误处理函数
@@ -48,15 +49,30 @@ check_ubuntu() {
     echo -e "${GREEN}✓ Ubuntu系统检查通过${NC}"
 }
 
+# 检查是否已安装Chrome
+check_existing_chrome() {
+    if command -v google-chrome &> /dev/null; then
+        echo -e "${YELLOW}检测到已安装的Google Chrome${NC}"
+        read -p "是否要重新安装？(y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${GREEN}安装已取消${NC}"
+            exit 0
+        fi
+        echo -e "${YELLOW}开始重新安装...${NC}"
+    fi
+}
+
 # 主函数
 main() {
-    echo -e "${YELLOW}开始安装 Google Chrome 浏览器...${NC}"
+    echo -e "${BLUE}开始安装 Google Chrome 浏览器...${NC}"
     
     # 执行检查
     check_root
     check_ubuntu
     check_architecture
     check_network
+    check_existing_chrome
     
     echo -e "${YELLOW}>>> 更新软件包索引...${NC}"
     sudo apt update -y || error_exit "更新软件包索引失败"
@@ -65,10 +81,10 @@ main() {
     sudo apt install -y wget ca-certificates gnupg || error_exit "安装依赖包失败"
     
     echo -e "${YELLOW}>>> 添加Google GPG密钥...${NC}"
-    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add - || error_exit "添加GPG密钥失败"
+    wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome.gpg > /dev/null || error_exit "添加GPG密钥失败"
     
     echo -e "${YELLOW}>>> 添加Google Chrome软件源...${NC}"
-    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list > /dev/null || error_exit "添加软件源失败"
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list > /dev/null || error_exit "添加软件源失败"
     
     echo -e "${YELLOW}>>> 更新软件包索引...${NC}"
     sudo apt update -y || error_exit "更新软件包索引失败"
@@ -80,6 +96,29 @@ main() {
     if google-chrome --version; then
         echo -e "${GREEN}✓ Google Chrome 安装成功！${NC}"
         echo -e "${GREEN}>>> 安装完成！你可以在应用菜单中找到并启动 Google Chrome。${NC}"
+        
+        # 显示版本信息
+        echo -e "${BLUE}版本信息:${NC}"
+        google-chrome --version
+        
+        # 创建桌面快捷方式（可选）
+        echo -e "${YELLOW}>>> 创建桌面快捷方式...${NC}"
+        if [[ -d "$HOME/Desktop" ]]; then
+            cat > "$HOME/Desktop/Google Chrome.desktop" << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Google Chrome
+Comment=Google Chrome Web Browser
+Exec=google-chrome %U
+Terminal=false
+Icon=google-chrome
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;image/gif;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;x-scheme-handler/chrome;
+EOF
+            chmod +x "$HOME/Desktop/Google Chrome.desktop"
+            echo -e "${GREEN}✓ 桌面快捷方式已创建${NC}"
+        fi
     else
         error_exit "Google Chrome 安装失败，请检查。"
     fi

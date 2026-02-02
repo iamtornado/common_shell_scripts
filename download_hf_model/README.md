@@ -119,7 +119,7 @@ download_hf_model.bat meta-llama/Llama-2-7b-chat-hf
 
 ```bash
 # 完整版脚本
-./download_hf_model.sh <model_name> [download_path] [max_retries]
+./download_hf_model.sh [选项] <model_name> [download_path] [max_retries]
 
 # 简化版脚本
 ./download_hf_model_simple.sh <model_name>
@@ -127,6 +127,10 @@ download_hf_model.bat meta-llama/Llama-2-7b-chat-hf
 # Windows 版本
 download_hf_model.bat <model_name> [download_path] [max_retries]
 ```
+
+### 选项
+
+- `-t, --token TOKEN`: Hugging Face 访问令牌，用于 gated 模型（也可通过 `HF_TOKEN` 环境变量设置）
 
 ### 参数说明
 
@@ -139,6 +143,12 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 ```bash
 # 使用 hf 默认目录，使用默认重试次数
 ./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf
+
+# 使用访问令牌下载 gated 模型（如 FLUX.2-dev）
+./download_hf_model.sh --token hf_xxxx black-forest-labs/FLUX.2-dev
+
+# 或使用 -t 简写
+./download_hf_model.sh -t $HF_TOKEN black-forest-labs/FLUX.2-dev
 
 # 指定下载目录和重试次数
 ./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf ./my_models 10

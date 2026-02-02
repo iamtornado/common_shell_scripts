@@ -29,6 +29,35 @@ if "%1"=="--help" (
     exit /b 0
 )
 
+REM 解析 --token / -t 参数
+set "model_name="
+set "download_path="
+set "max_retries="
+
+if "%1"=="--token" (
+    if "%2"=="" (
+        echo [ERROR] --token 需要指定令牌值
+        exit /b 1
+    )
+    set "HF_TOKEN=%2"
+    set "HUGGING_FACE_HUB_TOKEN=%2"
+    echo [INFO] 已设置访问令牌 (从命令行)
+    shift
+    shift
+)
+
+if "%1"=="-t" (
+    if "%2"=="" (
+        echo [ERROR] -t 需要指定令牌值
+        exit /b 1
+    )
+    set "HF_TOKEN=%2"
+    set "HUGGING_FACE_HUB_TOKEN=%2"
+    echo [INFO] 已设置访问令牌 (从命令行)
+    shift
+    shift
+)
+
 set "model_name=%1"
 set "download_path=%2"
 set "max_retries=%3"
@@ -325,7 +354,10 @@ exit /b 0
 :show_help
 echo Hugging Face 模型下载脚本
 echo.
-echo 用法: %0 ^<model_name^> [download_path] [max_retries]
+echo 用法: %0 [选项] ^<model_name^> [download_path] [max_retries]
+echo.
+echo 选项:
+echo   -t, --token TOKEN  Hugging Face 访问令牌 (用于 gated 模型，也可通过 HF_TOKEN 环境变量设置)
 echo.
 echo 参数:
 echo   model_name     要下载的模型名称 (例如: meta-llama/Llama-2-7b-chat-hf)
@@ -334,12 +366,13 @@ echo   max_retries    最大重试次数 (可选，默认: 5)
 echo.
 echo 示例:
 echo   %0 meta-llama/Llama-2-7b-chat-hf
-echo   %0 meta-llama/Llama-2-7b-chat-hf .\my_models 10
+echo   %0 --token hf_xxxx black-forest-labs/FLUX.2-dev
+echo   %0 -t %%HF_TOKEN%% meta-llama/Llama-2-7b-chat-hf .\my_models 10
 echo   %0 "microsoft/DialoGPT-medium" C:\data\models 3
 echo.
 echo 注意事项:
 echo   - 确保已安装 huggingface_hub CLI 工具
-echo   - 对于私有模型，需要先运行 'hf auth login' 进行身份验证
+echo   - 对于 gated/私有模型，需使用 --token 或 HF_TOKEN，或运行 'hf auth login'
 echo   - 大模型下载可能需要较长时间，建议使用 screen 或 tmux 运行
 echo   - 脚本会直接尝试下载，如果模型不存在会自动报错
 echo.

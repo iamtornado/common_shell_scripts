@@ -40,7 +40,10 @@ show_help() {
     cat << EOF
 Hugging Face 模型下载脚本
 
-用法: $0 <model_name> [download_path] [max_retries]
+用法: $0 [选项] <model_name> [download_path] [max_retries]
+
+选项:
+  -t, --token TOKEN  Hugging Face 访问令牌 (用于 gated 模型，也可通过 HF_TOKEN 环境变量设置)
 
 参数:
   model_name     要下载的模型名称 (例如: meta-llama/Llama-2-7b-chat-hf)
@@ -49,12 +52,13 @@ Hugging Face 模型下载脚本
 
 示例:
   $0 meta-llama/Llama-2-7b-chat-hf
-  $0 meta-llama/Llama-2-7b-chat-hf ./my_models 10
+  $0 --token hf_xxxx black-forest-labs/FLUX.2-dev
+  $0 -t \$HF_TOKEN meta-llama/Llama-2-7b-chat-hf ./my_models 10
   $0 "microsoft/DialoGPT-medium" /data/models 3
 
 注意事项:
   - 确保已安装 huggingface_hub CLI 工具
-  - 对于私有模型，需要先运行 'hf auth login' 进行身份验证
+  - 对于 gated/私有模型，需使用 --token 或 HF_TOKEN，或运行 'hf auth login'
   - 大模型下载可能需要较长时间，建议使用 screen 或 tmux 运行
   - 脚本会直接尝试下载，如果模型不存在会自动报错
 
@@ -380,9 +384,41 @@ main() {
         exit 0
     fi
     
-    local model_name="$1"
-    local download_path="${2:-$DEFAULT_DOWNLOAD_PATH}"
-    local max_retries="${999:-$DEFAULT_MAX_RETRIES}"
+    # 解析 --token / -t 参数，并过滤出 model_name, download_path, max_retries
+    local model_name=""
+    local download_path="$DEFAULT_DOWNLOAD_PATH"
+    local max_retries="$DEFAULT_MAX_RETRIES"
+    local positional=()
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -t|--token)
+                if [[ -n "${2:-}" && "$2" != -* ]]; then
+                    export HF_TOKEN="$2"
+                    export HUGGING_FACE_HUB_TOKEN="$2"
+                    log_info "已设置访问令牌 (从命令行)"
+                    shift 2
+                else
+                    log_error "--token 需要指定令牌值"
+                    exit 1
+                fi
+                ;;
+            *)
+                positional+=("$1")
+                shift
+                ;;
+        esac
+    done
+    
+    model_name="${positional[0]:-}"
+    [[ ${#positional[@]} -ge 2 ]] && download_path="${positional[1]}"
+    [[ ${#positional[@]} -ge 3 ]] && max_retries="${positional[2]}"
+    
+    if [[ -z "$model_name" ]]; then
+        log_error "请指定模型名称"
+        show_help
+        exit 1
+    fi
     
     log_info "=== Hugging Face 模型下载脚本 ==="
     log_info "模型名称: $model_name"
