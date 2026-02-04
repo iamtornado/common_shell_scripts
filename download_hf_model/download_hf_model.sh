@@ -43,7 +43,10 @@ Hugging Face 模型下载脚本
 用法: $0 [选项] <model_name> [download_path] [max_retries]
 
 选项:
-  -t, --token TOKEN  Hugging Face 访问令牌 (用于 gated 模型，也可通过 HF_TOKEN 环境变量设置)
+  -t, --token TOKEN   Hugging Face 访问令牌 (用于 gated 模型，也可通过 HF_TOKEN 环境变量设置)
+  --no-proxy         禁用代理，直连网络 (会取消 HTTP_PROXY、HTTPS_PROXY 等代理环境变量)
+  --mirror           强制使用镜像站点 (https://hf-mirror.com)
+  --no-mirror        不使用镜像站点 (取消 HF_ENDPOINT，直连 Hugging Face 官方)
 
 参数:
   model_name     要下载的模型名称 (例如: meta-llama/Llama-2-7b-chat-hf)
@@ -53,6 +56,9 @@ Hugging Face 模型下载脚本
 示例:
   $0 meta-llama/Llama-2-7b-chat-hf
   $0 --token hf_xxxx black-forest-labs/FLUX.2-dev
+  $0 --no-proxy meta-llama/Llama-2-7b-chat-hf
+  $0 --mirror meta-llama/Llama-2-7b-chat-hf
+  $0 --no-mirror meta-llama/Llama-2-7b-chat-hf
   $0 -t \$HF_TOKEN meta-llama/Llama-2-7b-chat-hf ./my_models 10
   $0 "microsoft/DialoGPT-medium" /data/models 3
 
@@ -96,8 +102,21 @@ check_dependencies() {
 }
 
 # 检查镜像站点配置
+# 受 MIRROR_MODE 控制: "force"=强制使用镜像, "disable"=不使用镜像, 其他=自动检测
 check_mirror_config() {
     log_info "检查镜像站点配置..."
+    
+    if [[ "${MIRROR_MODE:-}" == "force" ]]; then
+        export HF_ENDPOINT="https://hf-mirror.com"
+        log_success "已强制使用镜像站点: $HF_ENDPOINT"
+        return 0
+    fi
+    
+    if [[ "${MIRROR_MODE:-}" == "disable" ]]; then
+        unset HF_ENDPOINT
+        log_info "已禁用镜像站点，将直连 Hugging Face 官方"
+        return 0
+    fi
     
     if [[ -n "$HF_ENDPOINT" ]]; then
         if [[ "$HF_ENDPOINT" == "https://hf-mirror.com" ]]; then
@@ -402,6 +421,19 @@ main() {
                     log_error "--token 需要指定令牌值"
                     exit 1
                 fi
+                ;;
+            --no-proxy)
+                unset HTTP_PROXY http_proxy HTTPS_PROXY https_proxy ALL_PROXY all_proxy FTP_PROXY ftp_proxy
+                log_info "已禁用代理，使用直连网络"
+                shift
+                ;;
+            --mirror)
+                MIRROR_MODE="force"
+                shift
+                ;;
+            --no-mirror)
+                MIRROR_MODE="disable"
+                shift
                 ;;
             *)
                 positional+=("$1")

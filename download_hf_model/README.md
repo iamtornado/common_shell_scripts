@@ -131,6 +131,9 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 ### 选项
 
 - `-t, --token TOKEN`: Hugging Face 访问令牌，用于 gated 模型（也可通过 `HF_TOKEN` 环境变量设置）
+- `--no-proxy`: 禁用代理，直连网络（会取消 `HTTP_PROXY`、`HTTPS_PROXY` 等代理环境变量）
+- `--mirror`: 强制使用镜像站点（`https://hf-mirror.com`）
+- `--no-mirror`: 不使用镜像站点（取消 `HF_ENDPOINT`，直连 Hugging Face 官方）
 
 ### 参数说明
 
@@ -149,6 +152,15 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 
 # 或使用 -t 简写
 ./download_hf_model.sh -t $HF_TOKEN black-forest-labs/FLUX.2-dev
+
+# 禁用代理直连下载
+./download_hf_model.sh --no-proxy meta-llama/Llama-2-7b-chat-hf
+
+# 强制使用镜像站点（中国大陆用户）
+./download_hf_model.sh --mirror meta-llama/Llama-2-7b-chat-hf
+
+# 不使用镜像，直连官方
+./download_hf_model.sh --no-mirror meta-llama/Llama-2-7b-chat-hf
 
 # 指定下载目录和重试次数
 ./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf ./my_models 10

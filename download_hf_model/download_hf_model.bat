@@ -58,6 +58,31 @@ if "%1"=="-t" (
     shift
 )
 
+if "%1"=="--no-proxy" (
+    set "HTTP_PROXY="
+    set "http_proxy="
+    set "HTTPS_PROXY="
+    set "https_proxy="
+    set "ALL_PROXY="
+    set "all_proxy="
+    echo [INFO] 已禁用代理，使用直连网络
+    shift
+)
+
+if "%1"=="--mirror" (
+    set "HF_ENDPOINT=https://hf-mirror.com"
+    set "MIRROR_MODE=force"
+    echo [INFO] 已强制使用镜像站点: https://hf-mirror.com
+    shift
+)
+
+if "%1"=="--no-mirror" (
+    set "HF_ENDPOINT="
+    set "MIRROR_MODE=disable"
+    echo [INFO] 已禁用镜像站点，将直连 Hugging Face 官方
+    shift
+)
+
 set "model_name=%1"
 set "download_path=%2"
 set "max_retries=%3"
@@ -128,6 +153,14 @@ exit /b 0
 
 :check_mirror_config
 echo [INFO] 检查镜像站点配置...
+if "%MIRROR_MODE%"=="force" (
+    echo [SUCCESS] 已强制使用镜像站点: %HF_ENDPOINT%
+    exit /b 0
+)
+if "%MIRROR_MODE%"=="disable" (
+    echo [INFO] 已禁用镜像站点，将直连 Hugging Face 官方
+    exit /b 0
+)
 if not "%HF_ENDPOINT%"=="" (
     if "%HF_ENDPOINT%"=="https://hf-mirror.com" (
         echo [SUCCESS] 已配置中国大陆镜像站点: %HF_ENDPOINT%
@@ -357,7 +390,10 @@ echo.
 echo 用法: %0 [选项] ^<model_name^> [download_path] [max_retries]
 echo.
 echo 选项:
-echo   -t, --token TOKEN  Hugging Face 访问令牌 (用于 gated 模型，也可通过 HF_TOKEN 环境变量设置)
+echo   -t, --token TOKEN   Hugging Face 访问令牌 (用于 gated 模型，也可通过 HF_TOKEN 环境变量设置)
+echo   --no-proxy         禁用代理，直连网络
+echo   --mirror           强制使用镜像站点 (https://hf-mirror.com)
+echo   --no-mirror        不使用镜像站点
 echo.
 echo 参数:
 echo   model_name     要下载的模型名称 (例如: meta-llama/Llama-2-7b-chat-hf)
@@ -367,6 +403,9 @@ echo.
 echo 示例:
 echo   %0 meta-llama/Llama-2-7b-chat-hf
 echo   %0 --token hf_xxxx black-forest-labs/FLUX.2-dev
+echo   %0 --no-proxy meta-llama/Llama-2-7b-chat-hf
+echo   %0 --mirror meta-llama/Llama-2-7b-chat-hf
+echo   %0 --no-mirror meta-llama/Llama-2-7b-chat-hf
 echo   %0 -t %%HF_TOKEN%% meta-llama/Llama-2-7b-chat-hf .\my_models 10
 echo   %0 "microsoft/DialoGPT-medium" C:\data\models 3
 echo.
