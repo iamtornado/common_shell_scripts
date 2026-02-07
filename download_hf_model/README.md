@@ -134,6 +134,8 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 - `--no-proxy`: 禁用代理，直连网络（会取消 `HTTP_PROXY`、`HTTPS_PROXY` 等代理环境变量）
 - `--mirror`: 强制使用镜像站点（`https://hf-mirror.com`）
 - `--no-mirror`: 不使用镜像站点（取消 `HF_ENDPOINT`，直连 Hugging Face 官方）
+- `--hf-transfer`: 启用 hf_transfer 加速大文件下载（需先 `pip install hf_transfer`）
+- `--no-hf-transfer`: 禁用 hf_transfer
 
 ### 参数说明
 
@@ -161,6 +163,12 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 
 # 不使用镜像，直连官方
 ./download_hf_model.sh --no-mirror meta-llama/Llama-2-7b-chat-hf
+
+# 启用 hf_transfer 加速大文件下载（如 FLUX.2-dev）
+./download_hf_model.sh --hf-transfer black-forest-labs/FLUX.2-dev
+
+# 禁用 hf_transfer，使用镜像站点（hf_transfer 与镜像可能不兼容）
+./download_hf_model.sh --no-hf-transfer --mirror meta-llama/Llama-2-7b-chat-hf
 
 # 指定下载目录和重试次数
 ./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf ./my_models 10

@@ -47,6 +47,8 @@ Hugging Face 模型下载脚本
   --no-proxy         禁用代理，直连网络 (会取消 HTTP_PROXY、HTTPS_PROXY 等代理环境变量)
   --mirror           强制使用镜像站点 (https://hf-mirror.com)
   --no-mirror        不使用镜像站点 (取消 HF_ENDPOINT，直连 Hugging Face 官方)
+  --hf-transfer      启用 hf_transfer 加速大文件下载 (需先 pip install hf_transfer)
+  --no-hf-transfer   禁用 hf_transfer
 
 参数:
   model_name     要下载的模型名称 (例如: meta-llama/Llama-2-7b-chat-hf)
@@ -59,6 +61,8 @@ Hugging Face 模型下载脚本
   $0 --no-proxy meta-llama/Llama-2-7b-chat-hf
   $0 --mirror meta-llama/Llama-2-7b-chat-hf
   $0 --no-mirror meta-llama/Llama-2-7b-chat-hf
+  $0 --hf-transfer black-forest-labs/FLUX.2-dev
+  $0 --no-hf-transfer --mirror meta-llama/Llama-2-7b-chat-hf
   $0 -t \$HF_TOKEN meta-llama/Llama-2-7b-chat-hf ./my_models 10
   $0 "microsoft/DialoGPT-medium" /data/models 3
 
@@ -433,6 +437,16 @@ main() {
                 ;;
             --no-mirror)
                 MIRROR_MODE="disable"
+                shift
+                ;;
+            --hf-transfer)
+                export HF_HUB_ENABLE_HF_TRANSFER=1
+                log_info "已启用 hf_transfer 加速大文件下载"
+                shift
+                ;;
+            --no-hf-transfer)
+                unset HF_HUB_ENABLE_HF_TRANSFER
+                log_info "已禁用 hf_transfer"
                 shift
                 ;;
             *)
