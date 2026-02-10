@@ -21,6 +21,8 @@
 pip install -U "huggingface_hub[cli]"
 ```
 
+**加速下载提示**：从 `huggingface_hub` 0.32.0 开始，安装时会自动包含 `hf_xet`（基于 Rust 的加速下载工具），无需额外安装即可享受更快的下载速度。建议使用最新版本的 `huggingface_hub`。
+
 ### 2. 配置镜像站点（中国大陆用户推荐）
 
 为了提高下载速度，建议配置镜像站点：
@@ -134,7 +136,7 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 - `--no-proxy`: 禁用代理，直连网络（会取消 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`no_proxy`、`NO_PROXY` 等代理相关环境变量，避免与 huggingface_hub/httpx 解析冲突导致的 `Invalid port: ':'` 等错误）
 - `--mirror`: 强制使用镜像站点（`https://hf-mirror.com`）
 - `--no-mirror`: 不使用镜像站点（取消 `HF_ENDPOINT`，直连 Hugging Face 官方）
-- `--hf-transfer`: 启用 hf_transfer 加速大文件下载（需先 `pip install hf_transfer`）
+- `--hf-transfer`: 启用 hf_transfer 加速大文件下载（需先 `pip install hf_transfer`）。**注意**：`hf_transfer` 已被弃用，推荐使用 `hf_xet`（huggingface_hub 0.32.0+ 自动包含，无需额外安装）
 - `--no-hf-transfer`: 禁用 hf_transfer
 
 ### 参数说明
@@ -165,10 +167,15 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 ./download_hf_model.sh --no-mirror meta-llama/Llama-2-7b-chat-hf
 
 # 启用 hf_transfer 加速大文件下载（如 FLUX.2-dev）
+# 注意：hf_transfer 已弃用，推荐使用 hf_xet（huggingface_hub 0.32.0+ 自动包含）
 ./download_hf_model.sh --hf-transfer black-forest-labs/FLUX.2-dev
 
 # 禁用 hf_transfer，使用镜像站点（hf_transfer 与镜像可能不兼容）
 ./download_hf_model.sh --no-hf-transfer --mirror meta-llama/Llama-2-7b-chat-hf
+
+# 使用 hf_xet 加速（推荐，huggingface_hub 0.32.0+ 自动启用，无需额外配置）
+# 只需确保 huggingface_hub 版本 >= 0.32.0，脚本会自动使用 hf_xet
+./download_hf_model.sh black-forest-labs/FLUX.2-dev
 
 # 指定下载目录和重试次数
 ./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf ./my_models 10
@@ -320,9 +327,13 @@ DEFAULT_RETRY_DELAY=30        # 重试间隔（秒）
 
 ### Q: 下载速度很慢怎么办？
 A: 
-- 检查网络连接质量
-- 尝试使用VPN或代理
-- 考虑在非高峰时段下载
+- **使用加速下载工具**（推荐）：
+  - **`hf_xet`**（推荐）：从 `huggingface_hub` 0.32.0 开始自动包含，无需额外安装。使用基于 Rust 的 Xet 存储系统，支持分块去重，可显著提升大文件下载速度。只需确保 `huggingface_hub` 版本 >= 0.32.0 即可自动启用。
+  - **`hf_transfer`**（已弃用）：仍可通过 `--hf-transfer` 选项使用，但建议升级到支持 `hf_xet` 的版本。
+- **使用镜像站点**（中国大陆用户）：使用 `--mirror` 选项或设置 `HF_ENDPOINT=https://hf-mirror.com`
+- **检查网络连接质量**：确保网络稳定，考虑使用 VPN 或代理
+- **考虑在非高峰时段下载**：避开网络高峰期
+- **参考官方文档**：[Faster downloads](https://huggingface.co/docs/huggingface_hub/guides/download#faster-downloads)
 
 ### Q: 下载中断后如何恢复？
 A: 
