@@ -131,7 +131,7 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 ### 选项
 
 - `-t, --token TOKEN`: Hugging Face 访问令牌，用于 gated 模型（也可通过 `HF_TOKEN` 环境变量设置）
-- `--no-proxy`: 禁用代理，直连网络（会取消 `HTTP_PROXY`、`HTTPS_PROXY` 等代理环境变量）
+- `--no-proxy`: 禁用代理，直连网络（会取消 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`no_proxy`、`NO_PROXY` 等代理相关环境变量，避免与 huggingface_hub/httpx 解析冲突导致的 `Invalid port: ':'` 等错误）
 - `--mirror`: 强制使用镜像站点（`https://hf-mirror.com`）
 - `--no-mirror`: 不使用镜像站点（取消 `HF_ENDPOINT`，直连 Hugging Face 官方）
 - `--hf-transfer`: 启用 hf_transfer 加速大文件下载（需先 `pip install hf_transfer`）
@@ -358,6 +358,12 @@ A:
 - **不会影响模型质量**，镜像站点只是提供更快的下载速度
 - 所有模型文件都经过完整性校验
 - 镜像站点与官方站点保持同步
+
+### Q: 报错 `Invalid port: ':'` 或 SOCKS proxy 相关错误怎么办？
+A: 
+- 若环境中存在代理相关变量（如 `HTTP_PROXY`、`all_proxy`、`no_proxy` 等），huggingface_hub 使用的 httpx 可能因解析 `no_proxy` 中的 IPv6/CIDR 格式而报 `Invalid port: ':'`。
+- **推荐**：使用脚本的 `--no-proxy` 选项（会同时清除 `no_proxy`、`NO_PROXY` 等），再执行下载。
+- 若必须走代理：可仅保留 HTTP/HTTPS 代理并临时执行 `unset no_proxy NO_PROXY` 后运行脚本；使用 SOCKS 代理时需先安装 `pip install httpx[socks]`。
 
 ### Q: 下载时提示 "Access denied" 怎么办？
 A: 

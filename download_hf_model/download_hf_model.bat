@@ -65,6 +65,8 @@ if "%1"=="--no-proxy" (
     set "https_proxy="
     set "ALL_PROXY="
     set "all_proxy="
+    set "no_proxy="
+    set "NO_PROXY="
     echo [INFO] 已禁用代理，使用直连网络
     shift
 )

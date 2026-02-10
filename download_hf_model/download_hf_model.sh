@@ -427,7 +427,7 @@ main() {
                 fi
                 ;;
             --no-proxy)
-                unset HTTP_PROXY http_proxy HTTPS_PROXY https_proxy ALL_PROXY all_proxy FTP_PROXY ftp_proxy
+                unset HTTP_PROXY http_proxy HTTPS_PROXY https_proxy ALL_PROXY all_proxy FTP_PROXY ftp_proxy no_proxy NO_PROXY
                 log_info "已禁用代理，使用直连网络"
                 shift
                 ;;
