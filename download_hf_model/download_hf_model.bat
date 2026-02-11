@@ -268,8 +268,8 @@ exit /b 0
 :verify_download
 echo [INFO] 验证下载完整性...
 
-REM 使用 hf cache scan 命令验证下载
-echo [INFO] 使用 hf cache scan 验证下载状态...
+REM 使用 hf cache ls 命令验证下载（huggingface_hub 1.4+ 使用 ls 替代已移除的 scan）
+echo [INFO] 使用 hf cache ls 验证下载状态...
 
 REM 检查 hf 命令是否可用
 where hf >nul 2>&1
@@ -278,27 +278,30 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 执行 hf cache scan 命令
-for /f "delims=" %%i in ('hf cache scan 2^>^&1') do set "cache_scan_output=%%i"
+REM 执行 hf cache ls 命令（1.4+ 为 ls）
+set "cache_ls_output="
+for /f "delims=" %%i in ('hf cache ls 2^>^&1') do set "cache_ls_output=!cache_ls_output! %%i"
 
-REM 检查模型是否在缓存中
-echo %cache_scan_output% | findstr /i "%model_name%" >nul
+REM 检查模型是否在缓存中（hf cache ls 输出 ID 格式为 model/org/repo）
+echo %cache_ls_output% | findstr /i "model/%model_name%" >nul
 if errorlevel 1 (
-    echo [WARNING] 在缓存中未找到模型 %model_name%
-    echo [INFO] 这可能意味着：
-    echo [INFO] 1. 模型下载失败
-    echo [INFO] 2. 模型下载到了不同的位置
-    echo [INFO] 3. 缓存扫描结果不完整
-    exit /b 1
-) else (
-    echo [SUCCESS] ✓ 模型 %model_name% 已成功下载到缓存
+    echo %cache_ls_output% | findstr /i "%model_name%" >nul
+    if errorlevel 1 (
+        echo [WARNING] 在缓存中未找到模型 %model_name%
+        echo [INFO] 这可能意味着：
+        echo [INFO] 1. 模型下载失败
+        echo [INFO] 2. 模型下载到了不同的位置
+        echo [INFO] 3. 缓存列表结果不完整
+        exit /b 1
+    )
 )
+echo [SUCCESS] ✓ 模型 %model_name% 已成功下载到缓存
 
-REM 显示完整的 hf cache scan 结果
+REM 显示缓存列表
 echo.
-echo [INFO] 📊 Hugging Face 缓存扫描结果:
+echo [INFO] 📊 Hugging Face 缓存列表:
 echo ==================================
-echo %cache_scan_output%
+hf cache ls
 echo ==================================
 echo.
 
@@ -319,64 +322,53 @@ exit /b 0
 echo [INFO] 下载统计信息:
 echo ==================================
 
-REM 获取模型的真实缓存路径和统计信息
+REM 获取模型的真实缓存路径和统计信息（hf cache ls 为 1.4+ 用法）
 set "model_cache_path="
 set "model_size="
 set "file_count="
 
-REM 执行 hf cache scan 获取模型信息
-set "cache_scan_output="
-for /f "delims=" %%i in ('hf cache scan 2^>^&1') do (
+REM 执行 hf cache ls 获取模型信息，格式为 ID SIZE LAST_ACCESSED LAST_MODIFIED REFS
+set "model_info="
+for /f "delims=" %%i in ('hf cache ls 2^>^&1') do (
     set "line=%%i"
-    echo !line! | findstr /i "%model_name%" >nul
-    if not errorlevel 1 (
-        set "model_info=%%i"
-    )
+    echo !line! | findstr /i "model/%model_name%" >nul
+    if not errorlevel 1 set "model_info=%%i"
 )
 
 if not "!model_info!"=="" (
-    REM 提取模型信息（Windows批处理中简化处理）
-    for /f "tokens=3,4" %%a in ("!model_info!") do (
-        set "model_size=%%a"
-        set "file_count=%%b"
+    REM 第 2 列为大小
+    for /f "tokens=2" %%a in ("!model_info!") do set "model_size=%%a"
+    REM 构造缓存路径：%USERPROFILE%\.cache\huggingface\hub\models--org--repo\snapshots\<commit>
+    set "repo_dir=models--%model_name:/=--%"
+    set "cache_base=%USERPROFILE%\.cache\huggingface\hub\!repo_dir!\snapshots"
+    if exist "!cache_base!" (
+        for /f "delims=" %%s in ('dir /b "!cache_base!" 2^>nul') do (
+            if "!model_cache_path!"=="" set "model_cache_path=!cache_base!\%%s"
+        )
     )
-    
-    REM 提取缓存路径（使用正则表达式匹配）
-    for /f "delims=" %%i in ('echo !model_info! ^| findstr /r "/[^ ]*models--[^ ]*--[^ ]*"') do set "model_cache_path=%%i"
-    
     if not "!model_cache_path!"=="" (
         echo 模型缓存路径: !model_cache_path!
         echo 模型大小: !model_size!
-        echo 文件数量: !file_count!
     ) else (
         echo 模型大小: !model_size!
-        echo 文件数量: !file_count!
-        echo [WARNING] 无法获取模型缓存路径
     )
 ) else (
-    echo [WARNING] 无法获取模型缓存信息，可能模型下载失败或缓存扫描失败
+    echo [WARNING] 无法获取模型缓存信息，可能模型下载失败或需 huggingface_hub 1.4+
 )
 
 echo ==================================
 exit /b 0
 
 :get_model_cache_path
-REM 获取模型的真实下载位置
+REM 获取模型的真实下载位置（hf cache ls 为 1.4+ 用法，路径由缓存目录构造）
 set "model_cache_path="
 
-REM 执行 hf cache scan 获取模型信息
-set "cache_scan_output="
-for /f "delims=" %%i in ('hf cache scan 2^>^&1') do (
-    set "line=%%i"
-    echo !line! | findstr /i "%model_name%" >nul
-    if not errorlevel 1 (
-        set "model_info=%%i"
+set "repo_dir=models--%model_name:/=--%"
+set "cache_base=%USERPROFILE%\.cache\huggingface\hub\!repo_dir!\snapshots"
+if exist "!cache_base!" (
+    for /f "delims=" %%s in ('dir /b "!cache_base!" 2^>nul') do (
+        if "!model_cache_path!"=="" set "model_cache_path=!cache_base!\%%s"
     )
-)
-
-if not "!model_info!"=="" (
-    REM 提取缓存路径
-    for /f "delims=" %%i in ('echo !model_info! ^| findstr /r "/[^ ]*models--[^ ]*--[^ ]*"') do set "model_cache_path=%%i"
 )
 
 if not "!model_cache_path!"=="" (

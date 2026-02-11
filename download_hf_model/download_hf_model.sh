@@ -273,8 +273,8 @@ verify_download() {
     
     log_info "验证下载完整性..."
     
-    # 使用 hf cache scan 命令验证下载
-    log_info "使用 hf cache scan 验证下载状态..."
+    # 使用 hf cache ls 命令验证下载（huggingface_hub 1.4+ 使用 ls 替代已移除的 scan）
+    log_info "使用 hf cache ls 验证下载状态..."
     
     # 检查 hf 命令是否可用
     if ! command -v hf &> /dev/null; then
@@ -282,24 +282,22 @@ verify_download() {
         return 1
     fi
     
-    # 执行 hf cache scan 命令
-    local cache_scan_output
-    if cache_scan_output=$(hf cache scan 2>&1); then
-        log_success "缓存扫描完成"
+    # 执行 hf cache ls 命令（1.4+ 为 ls，旧版本可能仍为 scan，优先尝试 ls）
+    local cache_ls_output
+    if cache_ls_output=$(hf cache ls 2>&1); then
+        log_success "缓存列表获取完成"
         
-        # 显示完整的 hf cache scan 结果
-        log_success "✓ 缓存扫描完成"
-        
-        # 直接显示 hf cache scan 的完整输出
+        # 显示缓存列表
+        log_success "✓ 缓存列表完成"
         echo ""
-        log_info "📊 Hugging Face 缓存扫描结果:"
+        log_info "📊 Hugging Face 缓存列表:"
         echo "=================================="
-        echo "$cache_scan_output"
+        echo "$cache_ls_output"
         echo "=================================="
         echo ""
         
-        # 检查模型是否在缓存中
-        if echo "$cache_scan_output" | grep -q "$model_name"; then
+        # 检查模型是否在缓存中（hf cache ls 输出 ID 格式为 model/org/repo）
+        if echo "$cache_ls_output" | grep -q "model/$model_name\|$model_name"; then
             log_success "✓ 模型 $model_name 已成功下载到缓存"
             return 0
         else
@@ -307,14 +305,21 @@ verify_download() {
             log_info "这可能意味着："
             log_info "1. 模型下载失败"
             log_info "2. 模型下载到了不同的位置"
-            log_info "3. 缓存扫描结果不完整"
+            log_info "3. 缓存列表结果不完整"
             
             # 尝试使用传统方法验证
             verify_download_traditional "$model_name"
             return 1
         fi
     else
-        log_warning "hf cache scan 命令执行失败: $cache_scan_output"
+        # 兼容旧版本：尝试 hf cache scan（0.x 曾使用）
+        if cache_ls_output=$(hf cache scan 2>&1); then
+            if echo "$cache_ls_output" | grep -q "$model_name"; then
+                log_success "✓ 模型 $model_name 已成功下载到缓存"
+                return 0
+            fi
+        fi
+        log_warning "hf cache ls 命令执行失败: $cache_ls_output"
         log_info "回退到传统验证方法..."
         
         # 回退到传统验证方法
@@ -368,20 +373,30 @@ show_download_stats() {
     log_info "下载统计信息:"
     echo "=================================="
     
-    # 获取模型的真实缓存路径和统计信息
+    # 获取模型的真实缓存路径和统计信息（hf cache ls 为 1.4+ 用法）
     local model_cache_path=""
     local model_size=""
     local file_count=""
     
     if command -v hf &> /dev/null; then
-        local cache_scan_output
-        if cache_scan_output=$(hf cache scan 2>&1); then
-            if echo "$cache_scan_output" | grep -q "$model_name"; then
-                local model_info=$(echo "$cache_scan_output" | grep "$model_name")
-                # 提取本地路径：使用正则表达式匹配以 / 开头的完整路径
-                model_cache_path=$(echo "$model_info" | grep -o '/[^[:space:]]*models--[^[:space:]]*--[^[:space:]]*')
-                model_size=$(echo "$model_info" | awk '{print $3}')
-                file_count=$(echo "$model_info" | awk '{print $4}')
+        local cache_ls_output
+        if cache_ls_output=$(hf cache ls 2>&1); then
+            local model_line
+            model_line=$(echo "$cache_ls_output" | grep "model/$model_name" | head -1)
+            if [[ -n "$model_line" ]]; then
+                # hf cache ls 格式: ID SIZE LAST_ACCESSED LAST_MODIFIED REFS，取第 2 列为大小
+                model_size=$(echo "$model_line" | awk '{print $2}')
+                # 构造缓存路径: HF_HUB_CACHE 或 ~/.cache/huggingface/hub，repo 目录为 models--org--repo
+                local cache_dir="${HF_HUB_CACHE:-$HOME/.cache/huggingface/hub}"
+                local repo_dir="models--${model_name//\//--}"
+                if [[ -d "$cache_dir/$repo_dir/snapshots" ]]; then
+                    local snapshot
+                    snapshot=$(ls -1 "$cache_dir/$repo_dir/snapshots" 2>/dev/null | head -1)
+                    if [[ -n "$snapshot" ]]; then
+                        model_cache_path="$cache_dir/$repo_dir/snapshots/$snapshot"
+                        file_count=$(find "$model_cache_path" -type f 2>/dev/null | wc -l)
+                    fi
+                fi
             fi
         fi
     fi
@@ -498,14 +513,19 @@ main() {
         
         show_download_stats "$download_path" "$model_name"
         
-        # 获取模型的真实下载位置
+        # 获取模型的真实下载位置（hf cache ls 为 1.4+ 用法，路径由缓存目录构造）
         local model_cache_path=""
         if command -v hf &> /dev/null; then
-            local cache_scan_output
-            if cache_scan_output=$(hf cache scan 2>&1); then
-                if echo "$cache_scan_output" | grep -q "$model_name"; then
-                    # 提取本地路径：使用正则表达式匹配以 / 开头的完整路径
-                    model_cache_path=$(echo "$cache_scan_output" | grep "$model_name" | grep -o '/[^[:space:]]*models--[^[:space:]]*--[^[:space:]]*')
+            local cache_ls_output
+            if cache_ls_output=$(hf cache ls 2>&1); then
+                if echo "$cache_ls_output" | grep -q "model/$model_name"; then
+                    local cache_dir="${HF_HUB_CACHE:-$HOME/.cache/huggingface/hub}"
+                    local repo_dir="models--${model_name//\//--}"
+                    if [[ -d "$cache_dir/$repo_dir/snapshots" ]]; then
+                        local snapshot
+                        snapshot=$(ls -1 "$cache_dir/$repo_dir/snapshots" 2>/dev/null | head -1)
+                        [[ -n "$snapshot" ]] && model_cache_path="$cache_dir/$repo_dir/snapshots/$snapshot"
+                    fi
                 fi
             fi
         fi

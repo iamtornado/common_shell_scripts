@@ -377,6 +377,11 @@ A:
 - **推荐**：使用脚本的 `--no-proxy` 选项（会同时清除 `no_proxy`、`NO_PROXY` 等），再执行下载。
 - 若必须走代理：可仅保留 HTTP/HTTPS 代理并临时执行 `unset no_proxy NO_PROXY` 后运行脚本；使用 SOCKS 代理时需先安装 `pip install httpx[socks]`。
 
+### Q: 验证下载时提示 `No such command 'scan'` 或 hf cache scan 失败？
+A: 
+- **huggingface_hub 1.4+** 已移除 `hf cache scan`，改用 **`hf cache ls`** 查看缓存。本脚本已适配：会优先使用 `hf cache ls`，若失败再尝试旧版 `hf cache scan`。
+- 下载完成后的“验证”和“下载统计”会通过 `hf cache ls` 获取缓存列表与路径；若你使用 1.4+，请更新到脚本最新版即可正常看到缓存验证与模型路径。
+
 ### Q: 下载时提示 "Access denied" 怎么办？
 A: 
 - 该模型可能需要特殊授权，请先在 Hugging Face 网站上申请访问权限
