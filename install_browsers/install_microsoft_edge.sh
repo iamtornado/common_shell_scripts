@@ -34,11 +34,43 @@ check_architecture() {
 }
 
 # 检查网络连接
+# 优先使用 curl/wget（部分网络环境会屏蔽 ICMP ping）
 check_network() {
-    if ! ping -c 1 microsoft.com &> /dev/null; then
-        error_exit "无法连接到网络，请检查网络连接"
+    # 1. 优先检查 Microsoft 软件源（实际下载地址）
+    if command -v curl &> /dev/null; then
+        if curl -sf --connect-timeout 10 -o /dev/null https://packages.microsoft.com 2>/dev/null; then
+            echo -e "${GREEN}✓ 网络连接检查通过 (已连接至 Microsoft 服务器)${NC}"
+            return 0
+        fi
+    elif command -v wget &> /dev/null; then
+        if wget -q --spider --timeout=10 https://packages.microsoft.com 2>/dev/null; then
+            echo -e "${GREEN}✓ 网络连接检查通过 (已连接至 Microsoft 服务器)${NC}"
+            return 0
+        fi
     fi
-    echo -e "${GREEN}✓ 网络连接检查通过${NC}"
+    
+    # 2. 尝试 ping（部分环境允许 ICMP）
+    if ping -c 1 -W 5 packages.microsoft.com &> /dev/null; then
+        echo -e "${GREEN}✓ 网络连接检查通过${NC}"
+        return 0
+    fi
+    
+    # 3. 检测通用网络（如能访问国内站点，提示用户可能需代理/镜像）
+    if command -v curl &> /dev/null; then
+        if curl -sf --connect-timeout 5 -o /dev/null https://www.baidu.com 2>/dev/null; then
+            echo -e "${YELLOW}⚠ 无法连接 Microsoft 服务器，但检测到网络正常${NC}"
+            echo -e "${YELLOW}  若在中国大陆，可能需要配置代理。是否继续尝试安装？(y/N): ${NC}"
+            read -p "" -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                error_exit "用户取消安装"
+            fi
+            echo -e "${GREEN}✓ 用户选择继续，跳过网络检查${NC}"
+            return 0
+        fi
+    fi
+    
+    error_exit "无法连接到网络，请检查网络连接或代理设置"
 }
 
 # 检查是否为Ubuntu系统
