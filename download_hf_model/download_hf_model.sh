@@ -49,22 +49,26 @@ Hugging Face 模型下载脚本
   --no-mirror        不使用镜像站点 (取消 HF_ENDPOINT，直连 Hugging Face 官方)
   --hf-transfer      启用 hf_transfer 加速大文件下载 (需先 pip install hf_transfer)
   --no-hf-transfer   禁用 hf_transfer
+  --file FILE        只下载指定文件，可多次使用 (例如: --file config.json --file model.safetensors)
+  --include PATTERN  只下载匹配的文件 (glob，可多次使用，例如: --include "*.safetensors")
+  --exclude PATTERN  排除匹配的文件 (glob，可多次使用，例如: --exclude "*.fp16.*")
+  --dry-run          仅预览将下载的文件及大小，不实际下载
 
 参数:
   model_name     要下载的模型名称 (例如: meta-llama/Llama-2-7b-chat-hf)
-  download_path  下载路径 (可选，默认: 使用 hf 默认目录)
+  download_path  下载根路径 (可选；指定时会在其下创建 models--org--repo 子目录，避免多模型混在一起)
   max_retries    最大重试次数 (可选，默认: 999)
 
 示例:
   $0 meta-llama/Llama-2-7b-chat-hf
+  $0 --dry-run meta-llama/Llama-2-7b-chat-hf
+  $0 meta-llama/Llama-2-7b-chat-hf --file config.json --file model.safetensors
+  $0 meta-llama/Llama-2-7b-chat-hf --include "*.safetensors"
+  $0 meta-llama/Llama-2-7b-chat-hf --include "*.safetensors" --exclude "*.fp16.*"
   $0 --token hf_xxxx black-forest-labs/FLUX.2-dev
   $0 --no-proxy meta-llama/Llama-2-7b-chat-hf
   $0 --mirror meta-llama/Llama-2-7b-chat-hf
-  $0 --no-mirror meta-llama/Llama-2-7b-chat-hf
-  $0 --hf-transfer black-forest-labs/FLUX.2-dev
-  $0 --no-hf-transfer --mirror meta-llama/Llama-2-7b-chat-hf
   $0 -t \$HF_TOKEN meta-llama/Llama-2-7b-chat-hf ./my_models 10
-  $0 "microsoft/DialoGPT-medium" /data/models 3
 
 注意事项:
   - 确保已安装 huggingface_hub CLI 工具
@@ -187,17 +191,25 @@ validate_model_name() {
 }
 
 # 创建下载目录
+# 当指定 download_path 时，在其下创建模型子目录 models--org--repo，避免多模型混在同一目录
 create_download_dir() {
     local download_path="$1"
+    local model_name="$2"
     
     if [[ -n "$download_path" ]]; then
-        # 用户指定了下载路径
+        # 用户指定了下载路径：先确保父目录存在，再在其下创建模型专属子目录
         if [[ ! -d "$download_path" ]]; then
-            log_info "创建下载目录: $download_path"
+            log_info "创建下载根目录: $download_path"
             mkdir -p "$download_path"
         fi
-        
-        cd "$download_path"
+        # 子目录名与 HF 缓存一致：models--org--repo，便于区分不同模型
+        local model_subdir="models--${model_name//\//--}"
+        local actual_dir="$download_path/$model_subdir"
+        if [[ ! -d "$actual_dir" ]]; then
+            log_info "创建模型目录: $actual_dir"
+            mkdir -p "$actual_dir"
+        fi
+        cd "$actual_dir"
         log_success "下载目录: $(pwd)"
     else
         # 使用 hf 默认目录
@@ -210,6 +222,26 @@ create_download_dir() {
 # 不再预先验证模型是否存在，直接通过 hf download 命令进行下载
 # 如果模型不存在，hf download 命令会自动报错
 
+# 构建并执行 hf download 命令
+# 使用全局变量 FILES, INCLUDE_PATTERNS, EXCLUDE_PATTERNS（由 main 解析后传入）
+# 若指定了 --file 则只下载这些文件；否则使用 --include/--exclude 做模式筛选
+run_hf_download() {
+    local model_name="$1"
+    local download_path="$2"
+    local dry_run="$3"
+    local cmd=(hf download "$model_name")
+    if [[ ${#FILES[@]} -gt 0 ]]; then
+        cmd+=("${FILES[@]}")
+    else
+        local p
+        for p in "${INCLUDE_PATTERNS[@]}"; do cmd+=(--include "$p"); done
+        for p in "${EXCLUDE_PATTERNS[@]}"; do cmd+=(--exclude "$p"); done
+    fi
+    [[ -n "$download_path" ]] && cmd+=(--local-dir .)
+    [[ "$dry_run" == "1" ]] && cmd+=(--dry-run)
+    "${cmd[@]}"
+}
+
 # 下载模型文件
 download_model() {
     local model_name="$1"
@@ -219,6 +251,9 @@ download_model() {
     local success=false
     
     log_info "开始下载模型: $model_name"
+    [[ ${#FILES[@]} -gt 0 ]] && log_info "仅下载指定文件: ${FILES[*]}"
+    [[ ${#INCLUDE_PATTERNS[@]} -gt 0 ]] && log_info "包含模式: ${INCLUDE_PATTERNS[*]}"
+    [[ ${#EXCLUDE_PATTERNS[@]} -gt 0 ]] && log_info "排除模式: ${EXCLUDE_PATTERNS[*]}"
     log_info "最大重试次数: $max_retries"
     
     while [[ $retry_count -lt $max_retries && $success == false ]]; do
@@ -232,21 +267,10 @@ download_model() {
         
         log_info "开始下载 (尝试 $retry_count/$max_retries)..."
         
-                # 使用 hf download 命令下载模型
-        if [[ -n "$download_path" ]]; then
-            # 用户指定了下载路径，使用 --local-dir 参数
-            if hf download "$model_name" --local-dir .; then
-                log_success "模型下载成功！"
-                success=true
-                break
-            fi
-        else
-            # 使用 hf 默认目录，不指定 --local-dir 参数
-            if hf download "$model_name"; then
-                log_success "模型下载成功！"
-                success=true
-                break
-            fi
+        if run_hf_download "$model_name" "$download_path" 0; then
+            log_success "模型下载成功！"
+            success=true
+            break
         fi
         
         # 如果下载失败，处理重试逻辑
@@ -268,10 +292,19 @@ download_model() {
 }
 
 # 验证下载完整性
+# 当指定了 download_path（使用 --local-dir）时，文件在本地目录不在 HF 缓存，只做本地目录验证
 verify_download() {
     local model_name="$1"
+    local download_path="$2"
     
     log_info "验证下载完整性..."
+    
+    # 使用自定义下载路径时，文件在本地目录，hf cache ls 中不会有该模型，直接使用传统验证
+    if [[ -n "$download_path" ]]; then
+        log_info "使用自定义下载目录，按本地文件验证..."
+        verify_download_traditional "$model_name"
+        return $?
+    fi
     
     # 使用 hf cache ls 命令验证下载（huggingface_hub 1.4+ 使用 ls 替代已移除的 scan）
     log_info "使用 hf cache ls 验证下载状态..."
@@ -373,7 +406,22 @@ show_download_stats() {
     log_info "下载统计信息:"
     echo "=================================="
     
-    # 获取模型的真实缓存路径和统计信息（hf cache ls 为 1.4+ 用法）
+    # 使用自定义下载路径时，从当前目录统计（脚本已 cd 到 download_path）
+    if [[ -n "$download_path" ]]; then
+        local file_count
+        file_count=$(find . -type f -not -path "./.cache/*" 2>/dev/null | wc -l)
+        local model_size=""
+        if command -v du &> /dev/null; then
+            model_size=$(du -sh . 2>/dev/null | awk '{print $1}')
+        fi
+        echo "模型保存路径: $(pwd)"
+        echo "模型大小: ${model_size:-无法获取}"
+        echo "文件数量: $file_count"
+        echo "=================================="
+        return 0
+    fi
+    
+    # 从 hf cache ls 获取缓存中的模型信息
     local model_cache_path=""
     local model_size=""
     local file_count=""
@@ -384,9 +432,7 @@ show_download_stats() {
             local model_line
             model_line=$(echo "$cache_ls_output" | grep "model/$model_name" | head -1)
             if [[ -n "$model_line" ]]; then
-                # hf cache ls 格式: ID SIZE LAST_ACCESSED LAST_MODIFIED REFS，取第 2 列为大小
                 model_size=$(echo "$model_line" | awk '{print $2}')
-                # 构造缓存路径: HF_HUB_CACHE 或 ~/.cache/huggingface/hub，repo 目录为 models--org--repo
                 local cache_dir="${HF_HUB_CACHE:-$HOME/.cache/huggingface/hub}"
                 local repo_dir="models--${model_name//\//--}"
                 if [[ -d "$cache_dir/$repo_dir/snapshots" ]]; then
@@ -422,11 +468,15 @@ main() {
         exit 0
     fi
     
-    # 解析 --token / -t 参数，并过滤出 model_name, download_path, max_retries
+    # 解析选项，并过滤出 model_name, download_path, max_retries
     local model_name=""
     local download_path="$DEFAULT_DOWNLOAD_PATH"
     local max_retries="$DEFAULT_MAX_RETRIES"
     local positional=()
+    FILES=()
+    INCLUDE_PATTERNS=()
+    EXCLUDE_PATTERNS=()
+    DRY_RUN=0
     
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -464,6 +514,37 @@ main() {
                 log_info "已禁用 hf_transfer"
                 shift
                 ;;
+            --file)
+                if [[ -n "${2:-}" && "$2" != -* ]]; then
+                    FILES+=("$2")
+                    shift 2
+                else
+                    log_error "--file 需要指定文件名"
+                    exit 1
+                fi
+                ;;
+            --include)
+                if [[ -n "${2:-}" ]]; then
+                    INCLUDE_PATTERNS+=("$2")
+                    shift 2
+                else
+                    log_error "--include 需要指定匹配模式"
+                    exit 1
+                fi
+                ;;
+            --exclude)
+                if [[ -n "${2:-}" ]]; then
+                    EXCLUDE_PATTERNS+=("$2")
+                    shift 2
+                else
+                    log_error "--exclude 需要指定匹配模式"
+                    exit 1
+                fi
+                ;;
+            --dry-run)
+                DRY_RUN=1
+                shift
+                ;;
             *)
                 positional+=("$1")
                 shift
@@ -489,17 +570,29 @@ main() {
         log_info "下载路径: 使用 hf 默认目录"
     fi
     log_info "最大重试次数: $max_retries"
+    [[ $DRY_RUN -eq 1 ]] && log_info "模式: 仅预览 (--dry-run)，不实际下载"
     echo ""
     
     # 开始时间
     local start_time=$(date +%s)
     
+    # --dry-run: 仅预览后退出
+    if [[ $DRY_RUN -eq 1 ]]; then
+        if check_dependencies && validate_model_name "$model_name" && create_download_dir "$download_path" "$model_name"; then
+            log_info "预览将下载的文件及大小..."
+            if run_hf_download "$model_name" "$download_path" 1; then
+                log_success "预览完成（未下载任何文件）"
+            fi
+        fi
+        exit 0
+    fi
+    
     # 执行下载流程
     if check_dependencies && \
        validate_model_name "$model_name" && \
-       create_download_dir "$download_path" && \
+       create_download_dir "$download_path" "$model_name" && \
        download_model "$model_name" "$max_retries" "$download_path" && \
-       verify_download "$model_name"; then
+       verify_download "$model_name" "$download_path"; then
         
         # 计算耗时
         local end_time=$(date +%s)
@@ -513,27 +606,30 @@ main() {
         
         show_download_stats "$download_path" "$model_name"
         
-        # 获取模型的真实下载位置（hf cache ls 为 1.4+ 用法，路径由缓存目录构造）
-        local model_cache_path=""
-        if command -v hf &> /dev/null; then
-            local cache_ls_output
-            if cache_ls_output=$(hf cache ls 2>&1); then
-                if echo "$cache_ls_output" | grep -q "model/$model_name"; then
-                    local cache_dir="${HF_HUB_CACHE:-$HOME/.cache/huggingface/hub}"
-                    local repo_dir="models--${model_name//\//--}"
-                    if [[ -d "$cache_dir/$repo_dir/snapshots" ]]; then
-                        local snapshot
-                        snapshot=$(ls -1 "$cache_dir/$repo_dir/snapshots" 2>/dev/null | head -1)
-                        [[ -n "$snapshot" ]] && model_cache_path="$cache_dir/$repo_dir/snapshots/$snapshot"
+        # 最终保存位置提示
+        if [[ -n "$download_path" ]]; then
+            log_success "模型已成功下载到: $(pwd)"
+        else
+            local model_cache_path=""
+            if command -v hf &> /dev/null; then
+                local cache_ls_output
+                if cache_ls_output=$(hf cache ls 2>&1); then
+                    if echo "$cache_ls_output" | grep -q "model/$model_name"; then
+                        local cache_dir="${HF_HUB_CACHE:-$HOME/.cache/huggingface/hub}"
+                        local repo_dir="models--${model_name//\//--}"
+                        if [[ -d "$cache_dir/$repo_dir/snapshots" ]]; then
+                            local snapshot
+                            snapshot=$(ls -1 "$cache_dir/$repo_dir/snapshots" 2>/dev/null | head -1)
+                            [[ -n "$snapshot" ]] && model_cache_path="$cache_dir/$repo_dir/snapshots/$snapshot"
+                        fi
                     fi
                 fi
             fi
-        fi
-        
-        if [[ -n "$model_cache_path" ]]; then
-            log_success "模型已成功下载到: $model_cache_path"
-        else
-            log_success "模型已成功下载到 Hugging Face 默认缓存目录"
+            if [[ -n "$model_cache_path" ]]; then
+                log_success "模型已成功下载到: $model_cache_path"
+            else
+                log_success "模型已成功下载到 Hugging Face 默认缓存目录"
+            fi
         fi
         
     else

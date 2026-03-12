@@ -138,11 +138,15 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 - `--no-mirror`: 不使用镜像站点（取消 `HF_ENDPOINT`，直连 Hugging Face 官方）
 - `--hf-transfer`: 启用 hf_transfer 加速大文件下载（需先 `pip install hf_transfer`）。**注意**：`hf_transfer` 已被弃用，推荐使用 `hf_xet`（huggingface_hub 0.32.0+ 自动包含，无需额外安装）
 - `--no-hf-transfer`: 禁用 hf_transfer
+- `--file FILE`: 只下载指定文件，可多次使用（如 `--file config.json --file model.safetensors`）
+- `--include PATTERN`: 只下载匹配的文件（glob，可多次使用，如 `--include "*.safetensors"`）
+- `--exclude PATTERN`: 排除匹配的文件（glob，可多次使用，如 `--exclude "*.fp16.*"`）
+- `--dry-run`: 仅预览将下载的文件及大小，不实际下载
 
 ### 参数说明
 
 - `model_name`: 要下载的模型名称（必需）
-- `download_path`: 下载路径（可选，默认：使用 `hf` 默认目录）
+- `download_path`: 下载根路径（可选）。指定时会在其下自动创建 `models--org--repo` 子目录再下载，避免多个模型混在同一目录；默认使用 `hf` 缓存目录。
 - `max_retries`: 最大重试次数（可选，默认：999）
 
 ### 使用示例
@@ -150,6 +154,18 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 ```bash
 # 使用 hf 默认目录，使用默认重试次数
 ./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf
+
+# 仅预览将下载的文件及大小（不实际下载）
+./download_hf_model.sh --dry-run meta-llama/Llama-2-7b-chat-hf
+
+# 只下载指定文件
+./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf --file config.json --file model.safetensors
+
+# 只下载某类文件（如所有 .safetensors）
+./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf --include "*.safetensors"
+
+# 只下载 .safetensors 并排除 fp16 版本
+./download_hf_model.sh meta-llama/Llama-2-7b-chat-hf --include "*.safetensors" --exclude "*.fp16.*"
 
 # 使用访问令牌下载 gated 模型（如 FLUX.2-dev）
 ./download_hf_model.sh --token hf_xxxx black-forest-labs/FLUX.2-dev
@@ -194,6 +210,12 @@ download_hf_model.bat <model_name> [download_path] [max_retries]
 - 可配置重试次数和延迟时间
 - 智能错误处理和恢复
 - **断点续传**：支持自动续传未完成的下载（由 `huggingface_hub` 提供，无论是否启用 `hf-transfer` 都支持）。注意：续传时输出中不会明确显示"正在续传"提示，但已下载的文件会被自动跳过。
+
+### 📥 部分下载（只下仓库中部分文件）
+- **只下几个已知文件**：`--file config.json --file model.safetensors`
+- **只下某类文件**：`--include "*.safetensors"`
+- **排除某类文件**：`--exclude "*.fp16.*"`
+- **先看会下什么**：`--dry-run` 预览文件列表及大小后再决定是否下载
 
 ### 📊 下载验证
 - 自动检查下载完整性
@@ -319,8 +341,9 @@ DEFAULT_RETRY_DELAY=30        # 重试间隔（秒）
 - 授权申请通常需要几分钟到几小时的处理时间
 
 ### 下载目录
-- **默认行为**: 如果不指定下载路径，脚本会使用 `hf` 命令的默认目录
-- **自定义路径**: 如果指定了下载路径，脚本会在该路径下创建目录并下载
+- **默认行为**: 如果不指定下载路径，脚本会使用 `hf` 命令的默认缓存目录
+- **指定根路径时**: 在给定路径下自动创建 `models--org--repo` 子目录（与 HF 缓存命名一致），再下载到该子目录，这样同一根路径下可存放多个模型且互不混合
+- **示例**: `./download_hf_model.sh fal/FLUX.2-dev-Turbo /comfyuimodels/huggingface_models` → 文件会下载到 `/comfyuimodels/huggingface_models/models--fal--FLUX.2-dev-Turbo/`
 - **hf 默认目录**: 通常是 `~/.cache/huggingface/hub/` 或环境变量 `HF_HUB_CACHE` 指定的目录
 
 ## 🐛 常见问题
