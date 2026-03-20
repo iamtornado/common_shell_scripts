@@ -21,6 +21,10 @@ common_shell_scripts/
 │   ├── install_googlechrome.sh         # Google Chrome 安装脚本
 │   ├── install_microsoft_edge.sh       # Microsoft Edge 安装脚本
 │   └── ...
+├── github_star_migrate/                # GitHub Star 列表导出与批量 Star
+│   ├── README.md                       # 使用说明与 Token 权限
+│   ├── export_github_stars.sh          # 导出当前账号 Star 列表
+│   └── import_github_stars.sh          # 按列表批量 Star
 ├── [future_scripts]/                   # 未来添加的脚本目录
 │   ├── script_name/
 │   ├── README.md
@@ -54,6 +58,16 @@ common_shell_scripts/
 - 支持重新安装检测
 
 **适用场景**: Ubuntu用户、系统管理员、需要快速安装浏览器的用户
+
+### 3. GitHub Star 迁移 (`github_star_migrate/`)
+
+**功能**: 将一个 GitHub 账号 Star 过的仓库导出为文件，再用另一个账号批量 Star  
+**特性**:
+- 分页拉取完整列表，输出 `txt` + `json`
+- 支持 dry-run、请求间隔、导入报告
+- 适合换号迁移或备份 Star 清单
+
+**适用场景**: 多账号用户、需要迁移收藏夹的开发者（需自备 PAT，见目录内 README）
 
 ## 🔮 计划添加的脚本类型
 
